@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Optional;
+using Optional.Unsafe;
 
 namespace SharpCode
 {
@@ -8,9 +10,8 @@ namespace SharpCode
     /// Provides functionality for building class structures. <see cref="ClassBuilder"/> instances are <b>not</b>
     /// immutable.
     /// </summary>
-    public class ClassBuilder
+    public class ClassBuilder : IHasMembers
     {
-        private readonly Class _class = new Class();
         private readonly List<FieldBuilder> _fields = new List<FieldBuilder>();
         private readonly List<PropertyBuilder> _properties = new List<PropertyBuilder>();
         private readonly List<ConstructorBuilder> _constructors = new List<ConstructorBuilder>();
@@ -21,16 +22,19 @@ namespace SharpCode
 
         internal ClassBuilder(AccessModifier accessModifier, string name)
         {
-            _class.AccessModifier = accessModifier;
-            _class.Name = name;
+            Class = new Class(
+                accessModifier: accessModifier,
+                name: Option.Some(name));
         }
+
+        internal Class Class { get; private set; } = new Class(AccessModifier.Public);
 
         /// <summary>
         /// Sets the access modifier of the class being built.
         /// </summary>
         public ClassBuilder WithAccessModifier(AccessModifier accessModifier)
         {
-            _class.AccessModifier = accessModifier;
+            Class = Class.With(accessModifier: Option.Some(accessModifier));
             return this;
         }
 
@@ -39,7 +43,12 @@ namespace SharpCode
         /// </summary>
         public ClassBuilder WithName(string name)
         {
-            _class.Name = name;
+            if (name is null)
+            {
+                throw new ArgumentNullException(nameof(name));
+            }
+
+            Class = Class.With(name: Option.Some(name));
             return this;
         }
 
@@ -48,7 +57,12 @@ namespace SharpCode
         /// </summary>
         public ClassBuilder WithInheritedClass(string name)
         {
-            _class.InheritedClass = Option.Some(name);
+            if (name is null)
+            {
+                throw new ArgumentNullException(nameof(name));
+            }
+
+            Class = Class.With(inheritedClass: Option.Some(name));
             return this;
         }
 
@@ -57,7 +71,12 @@ namespace SharpCode
         /// </summary>
         public ClassBuilder WithImplementedInterface(string name)
         {
-            _class.ImplementedInterfaces.Add(name);
+            if (name is null)
+            {
+                throw new ArgumentNullException(nameof(name));
+            }
+
+            Class.ImplementedInterfaces.Add(name);
             return this;
         }
 
@@ -69,7 +88,12 @@ namespace SharpCode
         /// </param>
         public ClassBuilder WithSummary(string summary)
         {
-            _class.Summary = Option.Some<string?>(summary);
+            if (summary is null)
+            {
+                throw new ArgumentNullException(nameof(summary));
+            }
+
+            Class = Class.With(summary: Option.Some(summary));
             return this;
         }
 
@@ -78,6 +102,11 @@ namespace SharpCode
         /// </summary>
         public ClassBuilder WithField(FieldBuilder builder)
         {
+            if (builder is null)
+            {
+                throw new ArgumentNullException(nameof(builder));
+            }
+
             _fields.Add(builder);
             return this;
         }
@@ -87,6 +116,11 @@ namespace SharpCode
         /// </summary>
         public ClassBuilder WithFields(params FieldBuilder[] builders)
         {
+            if (builders.Any(x => x is null))
+            {
+                throw new ArgumentException($"On of the {nameof(builders)} parameter values is null.");
+            }
+
             _fields.AddRange(builders);
             return this;
         }
@@ -96,6 +130,11 @@ namespace SharpCode
         /// </summary>
         public ClassBuilder WithProperty(PropertyBuilder builder)
         {
+            if (builder is null)
+            {
+                throw new ArgumentNullException(nameof(builder));
+            }
+
             _properties.Add(builder);
             return this;
         }
@@ -105,6 +144,11 @@ namespace SharpCode
         /// </summary>
         public ClassBuilder WithProperties(params PropertyBuilder[] builders)
         {
+            if (builders.Any(x => x is null))
+            {
+                throw new ArgumentException($"One of the {nameof(builders)} parameter values is null.");
+            }
+
             _properties.AddRange(builders);
             return this;
         }
@@ -114,6 +158,16 @@ namespace SharpCode
         /// </summary>
         public ClassBuilder WithProperties(IEnumerable<PropertyBuilder> builders)
         {
+            if (builders is null)
+            {
+                throw new ArgumentNullException(nameof(builders));
+            }
+
+            if (builders.Any(x => x is null))
+            {
+                throw new ArgumentException($"One of the {nameof(builders)} parameter values is null.");
+            }
+
             _properties.AddRange(builders);
             return this;
         }
@@ -123,6 +177,11 @@ namespace SharpCode
         /// </summary>
         public ClassBuilder WithConstructor(ConstructorBuilder builder)
         {
+            if (builder is null)
+            {
+                throw new ArgumentNullException(nameof(builder));
+            }
+
             _constructors.Add(builder);
             return this;
         }
@@ -135,9 +194,26 @@ namespace SharpCode
         /// </param>
         public ClassBuilder MakeStatic(bool makeStatic = true)
         {
-            _class.IsStatic = makeStatic;
+            Class = Class.With(isStatic: Option.Some(makeStatic));
             return this;
         }
+
+        /// <inheritdoc/>
+        public bool HasMember(
+            string name,
+            MemberType memberType = MemberType.Any,
+            StringComparison comparison = StringComparison.InvariantCultureIgnoreCase) =>
+            memberType switch
+            {
+                MemberType.Field => _fields.Any(x => x.Field.Name.Exists(n => n.Equals(name, comparison))),
+
+                MemberType.Property => _properties.Any(x => x.Property.Name.Exists(n => n.Equals(name, comparison))),
+
+                MemberType.Any => HasMember(name, MemberType.Field, comparison) ||
+                    HasMember(name, MemberType.Property, comparison),
+
+                _ => false
+            };
 
         /// <summary>
         /// Returns the source code of the built class.
@@ -160,25 +236,25 @@ namespace SharpCode
 
         internal Class Build()
         {
-            if (string.IsNullOrWhiteSpace(_class.Name))
+            if (string.IsNullOrWhiteSpace(Class.Name.ValueOrDefault()))
             {
                 throw new MissingBuilderSettingException(
                     "Providing the name of the class is required when building a class.");
             }
-            else if (_class.IsStatic && _constructors.Count > 1)
+            else if (Class.IsStatic && _constructors.Count > 1)
             {
                 throw new SyntaxException("Static classes can have only 1 constructor.");
             }
 
-            _class.Fields.AddRange(_fields.Select(builder => builder.Build()));
-            _class.Properties.AddRange(_properties.Select(builder => builder.Build()));
-            _class.Constructors.AddRange(
+            Class.Fields.AddRange(_fields.Select(builder => builder.Build()));
+            Class.Properties.AddRange(_properties.Select(builder => builder.Build()));
+            Class.Constructors.AddRange(
                 _constructors.Select(builder => builder
-                    .WithName(_class.Name!)
-                    .MakeStatic(_class.IsStatic)
+                    .WithName(Class.Name.ValueOrFailure())
+                    .MakeStatic(Class.IsStatic)
                     .Build()));
 
-            return _class;
+            return Class;
         }
     }
 }

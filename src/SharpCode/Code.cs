@@ -64,8 +64,13 @@ namespace SharpCode
         /// members to ensure correct functionality. Flags enums for which no member has an explicit value will
         /// auto-generate appropriate values for each member.
         /// </param>
+        /// <exception cref="ArgumentNullException">
+        /// The specified <paramref name="name"/> is <c>null</c>.
+        /// </exception>
         public static EnumMemberBuilder CreateEnumMember(string name, int? value = null) =>
-            new EnumMemberBuilder(name, value.ToOption());
+            name is null
+                ? throw new ArgumentNullException(nameof(name))
+                : new EnumMemberBuilder(name, value.ToOption());
 
         /// <summary>
         /// Creates a new <see cref="InterfaceBuilder"/> instance for building interface structures.
@@ -149,11 +154,25 @@ namespace SharpCode
         /// <param name="accessModifier">
         /// The access of modifier of the field.
         /// </param>
+        /// <exception cref="ArgumentNullException">
+        /// If the specified <paramref name="type"/> and/or <paramref name="name"/> are <c>null</c>.
+        /// </exception>
         public static FieldBuilder CreateField(
             string type,
             string name,
-            AccessModifier accessModifier = AccessModifier.Private) =>
-            new FieldBuilder(accessModifier, type, name);
+            AccessModifier accessModifier = AccessModifier.Private)
+        {
+            if (type is null)
+            {
+                throw new ArgumentNullException(nameof(type));
+            }
+            else if (name is null)
+            {
+                throw new ArgumentNullException(nameof(name));
+            }
+
+            return new FieldBuilder(accessModifier, type, name);
+        }
 
         /// <summary>
         /// Creates a new pre-configured <see cref="FieldBuilder"/> instance for building fields. Configures the
@@ -170,11 +189,25 @@ namespace SharpCode
         /// <param name="accessModifier">
         /// The access of modifier of the field.
         /// </param>
+        /// <exception cref="ArgumentNullException">
+        /// If the specified <paramref name="type"/> and/or <paramref name="name"/> are <c>null</c>.
+        /// </exception>
         public static FieldBuilder CreateField(
             Type type,
             string name,
-            AccessModifier accessModifier = AccessModifier.Private) =>
-            new FieldBuilder(accessModifier, type, name);
+            AccessModifier accessModifier = AccessModifier.Private)
+        {
+            if (type is null)
+            {
+                throw new ArgumentNullException(nameof(type));
+            }
+            else if (name is null)
+            {
+                throw new ArgumentNullException(nameof(name));
+            }
+
+            return new FieldBuilder(accessModifier, type, name);
+        }
 
         /// <summary>
         /// Creates a new <see cref="ConstructorBuilder"/> instance for building constructors.
@@ -202,11 +235,25 @@ namespace SharpCode
         /// <param name="accessModifier">
         /// The access of modifier of the property.
         /// </param>
+        /// <exception cref="ArgumentNullException">
+        /// If the specified <paramref name="type"/> and/or <paramref name="name"/> are <c>null</c>.
+        /// </exception>
         public static PropertyBuilder CreateProperty(
             string type,
             string name,
-            AccessModifier accessModifier = AccessModifier.Public) =>
-            new PropertyBuilder(accessModifier, type, name);
+            AccessModifier accessModifier = AccessModifier.Public)
+        {
+            if (type is null)
+            {
+                throw new ArgumentNullException(nameof(type));
+            }
+            else if (name is null)
+            {
+                throw new ArgumentNullException(nameof(name));
+            }
+
+            return new PropertyBuilder(accessModifier, type, name);
+        }
 
         /// <summary>
         /// Creates a new pre-configured <see cref="PropertyBuilder"/> instance for building properties. Configures the
@@ -224,10 +271,24 @@ namespace SharpCode
         /// <param name="accessModifier">
         /// The access of modifier of the property.
         /// </param>
+        /// <exception cref="ArgumentNullException">
+        /// If the specified <paramref name="type"/> and/or <paramref name="name"/> are <c>null</c>.
+        /// </exception>
         public static PropertyBuilder CreateProperty(
             Type type,
             string name,
-            AccessModifier accessModifier = AccessModifier.Public) =>
-            new PropertyBuilder(accessModifier, type, name);
+            AccessModifier accessModifier = AccessModifier.Public)
+        {
+            if (type is null)
+            {
+                throw new ArgumentNullException(nameof(type));
+            }
+            else if (name is null)
+            {
+                throw new ArgumentNullException(nameof(name));
+            }
+
+            return new PropertyBuilder(accessModifier, type, name);
+        }
     }
 }

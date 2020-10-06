@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Optional;
+using Optional.Unsafe;
 
 namespace SharpCode
 {
@@ -36,9 +37,9 @@ namespace SharpCode
             var raw = Template
                 .Replace("{access-modifier}", field.AccessModifier.ToSourceCode())
                 .Replace("{readonly}", field.IsReadonly ? "readonly" : string.Empty)
-                .Replace("{type}", field.Type)
-                .Replace("{name}", field.Name)
-                .Replace("{documentation}", SummaryBlock(field.Summary));
+                .Replace("{type}", field.Type.ValueOrFailure())
+                .Replace("{name}", field.Name.ValueOrFailure())
+                .Replace("{documentation}", SummaryBlock(Option.Some<string?>(field.Summary.ValueOr(string.Empty))));
 
             return formatted ? raw.FormatSourceCode() : raw;
         }
@@ -62,7 +63,7 @@ namespace SharpCode
             var raw = Template
                 .Replace("{access-modifier}", constructor.AccessModifier.ToSourceCode())
                 .Replace("{static-modifier}", constructor.IsStatic ? "static" : string.Empty)
-                .Replace("{name}", constructor.ClassName)
+                .Replace("{name}", constructor.ClassName.ValueOrFailure())
                 .Replace("{parameters}", constructor.Parameters.Select(param => param.ToSourceCode()).Join(", "))
                 .Replace("{base-call}", constructor.BaseCallParameters.Match(
                     some: (parameters) => $": base({parameters.Join(", ")})",
@@ -70,10 +71,10 @@ namespace SharpCode
                 .Replace(
                     "{assignments}",
                     constructor.Parameters
-                        .Where(param => !string.IsNullOrWhiteSpace(param.ReceivingMember))
-                        .Select(param => $"{param.ReceivingMember} = {param.Name};")
+                        .Where(param => param.ReceivingMember.HasValue)
+                        .Select(param => $"{param.ReceivingMember.ValueOrFailure()} = {param.Name};")
                         .Join("\n"))
-                .Replace("{documentation}", SummaryBlock(constructor.Summary));
+                .Replace("{documentation}", SummaryBlock(Option.Some<string?>(constructor.Summary.ValueOr(string.Empty))));
 
             return formatted ? raw.FormatSourceCode() : raw;
         }
@@ -92,8 +93,8 @@ namespace SharpCode
             var raw = Template
                 .Replace("{access-modifier}", property.AccessModifier.ToSourceCode())
                 .Replace("{static-modifier}", property.IsStatic ? "static" : string.Empty)
-                .Replace("{type}", property.Type)
-                .Replace("{name}", property.Name)
+                .Replace("{type}", property.Type.ValueOrDefault())
+                .Replace("{name}", property.Name.ValueOrDefault())
                 .Replace("{getter-setter-open-bracket}", property.Getter.Else(property.Setter).HasValue
                     ? "{"
                     : ";") // Use ; instead of { if there is no getter or setter
@@ -131,7 +132,7 @@ namespace SharpCode
                         return defValue;
                     },
                     none: () => string.Empty))
-                .Replace("{documentation}", SummaryBlock(property.Summary));
+                .Replace("{documentation}", SummaryBlock(Option.Some<string?>(property.Summary.ValueOrDefault())));
 
             return formatted ? raw.FormatSourceCode() : raw;
         }
@@ -156,12 +157,12 @@ namespace SharpCode
             var raw = ClassTemplate
                 .Replace("{access-modifier}", classData.AccessModifier.ToSourceCode())
                 .Replace("{static-modifier}", classData.IsStatic ? "static" : string.Empty)
-                .Replace("{name}", classData.Name)
+                .Replace("{name}", classData.Name.ValueOrFailure())
                 .Replace("{inheritance}", inheritance.Any() ? $": {inheritance.Join(", ")}" : string.Empty)
                 .Replace("{fields}", classData.Fields.Select(field => field.ToSourceCode(false)).Join("\n"))
                 .Replace("{constructors}", classData.Constructors.Select(ctor => ctor.ToSourceCode(false)).Join("\n"))
                 .Replace("{properties}", classData.Properties.Select(property => property.ToSourceCode(false)).Join("\n"))
-                .Replace("{documentation}", SummaryBlock(classData.Summary));
+                .Replace("{documentation}", SummaryBlock(Option.Some<string?>(classData.Summary.ValueOrDefault())));
 
             return formatted ? raw.FormatSourceCode() : raw;
         }
@@ -217,12 +218,12 @@ namespace SharpCode
         public static string ToSourceCode(this EnumerationMember data)
         {
             return "{documentation}{name}{value},"
-                .Replace("{name}", data.Name)
+                .Replace("{name}", data.Name.ValueOrFailure())
                 .Replace("{value}", data.Value.Match(
                     some: (value) => $" = {value}",
                     none: () => string.Empty))
                 .Replace("{documentation}", data.Summary.Match(
-                    some: (_) => SummaryBlock(data.Summary) + "\n",
+                    some: (summary) => SummaryBlock(Option.Some<string?>(summary)) + "\n",
                     none: () => string.Empty));
         }
 

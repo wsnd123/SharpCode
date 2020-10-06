@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Optional;
 using Optional.Collections;
+using Optional.Unsafe;
 
 namespace SharpCode
 {
@@ -10,9 +11,8 @@ namespace SharpCode
     /// Provides functionalty for building enum structures. <see cref="EnumBuilder"/> instances are <b>not</b>
     /// immutable.
     /// </summary>
-    public class EnumBuilder
+    public class EnumBuilder : IHasMembers
     {
-        private readonly Enumeration _enumeration = new Enumeration();
         private readonly List<EnumMemberBuilder> _members = new List<EnumMemberBuilder>();
 
         internal EnumBuilder()
@@ -21,16 +21,18 @@ namespace SharpCode
 
         internal EnumBuilder(string name, AccessModifier accessModifier)
         {
-            _enumeration.Name = name;
-            _enumeration.AccessModifier = accessModifier;
+            Enumeration.Name = name;
+            Enumeration.AccessModifier = accessModifier;
         }
+
+        internal Enumeration Enumeration { get; } = new Enumeration();
 
         /// <summary>
         /// Sets the access modifier of the enum being built.
         /// </summary>
         public EnumBuilder WithAccessModifier(AccessModifier accessModifier)
         {
-            _enumeration.AccessModifier = accessModifier;
+            Enumeration.AccessModifier = accessModifier;
             return this;
         }
 
@@ -39,7 +41,7 @@ namespace SharpCode
         /// </summary>
         public EnumBuilder WithName(string name)
         {
-            _enumeration.Name = name;
+            Enumeration.Name = name;
             return this;
         }
 
@@ -80,7 +82,7 @@ namespace SharpCode
         /// </param>
         public EnumBuilder MakeFlagsEnum(bool makeFlagsEnum = true)
         {
-            _enumeration.IsFlag = makeFlagsEnum;
+            Enumeration.IsFlag = makeFlagsEnum;
             return this;
         }
 
@@ -92,9 +94,21 @@ namespace SharpCode
         /// </param>
         public EnumBuilder WithSummary(string summary)
         {
-            _enumeration.Summary = Option.Some<string?>(summary);
+            Enumeration.Summary = Option.Some<string?>(summary);
             return this;
         }
+
+        /// <inheritdoc/>
+        public bool HasMember(
+            string name,
+            MemberType memberType = MemberType.Any,
+            StringComparison comparison = StringComparison.InvariantCultureIgnoreCase) =>
+            memberType switch
+            {
+                MemberType.EnumMember => _members.Any(x => x.EnumerationMember.Name.Exists(n => n.Equals(name, comparison))),
+                MemberType.Any => HasMember(name, MemberType.EnumMember, comparison),
+                _ => false
+            };
 
         /// <summary>
         /// Returns the source code of the built enum.
@@ -113,30 +127,30 @@ namespace SharpCode
 
         internal Enumeration Build()
         {
-            if (string.IsNullOrWhiteSpace(_enumeration.Name))
+            if (string.IsNullOrWhiteSpace(Enumeration.Name))
             {
                 throw new MissingBuilderSettingException(
                     "Providing the name of the enum is required when building an enum.");
             }
 
-            _enumeration.Members.AddRange(_members.Select(x => x.Build()));
-            _enumeration.Members
-                .GroupBy(x => x.Name)
+            if (Enumeration.IsFlag && _members.All(x => !x.EnumerationMember.Value.HasValue))
+            {
+                for (var i = 0; i < _members.Count; i++)
+                {
+                    _members[i] = _members[i].WithValue(i == 0 ? 0 : (int)Math.Pow(2, i - 1));
+                }
+            }
+
+            Enumeration.Members.AddRange(_members.Select(x => x.Build()));
+            Enumeration.Members
+                .GroupBy(x => x.Name.ValueOrFailure())
                 .Where(x => x.AtLeast(2))
                 .Select(x => x.Key)
                 .FirstOrNone()
                 .MatchSome(duplicateMemberName => throw new SyntaxException(
-                    $"The enum '{_enumeration.Name}' already contains a definition for '{duplicateMemberName}'."));
+                    $"The enum '{Enumeration.Name}' already contains a definition for '{duplicateMemberName}'."));
 
-            if (_enumeration.IsFlag && _enumeration.Members.All(x => !x.Value.HasValue))
-            {
-                for (var i = 0; i < _enumeration.Members.Count; i++)
-                {
-                    _enumeration.Members[i].Value = Option.Some(i == 0 ? 0 : (int)Math.Pow(2, i - 1));
-                }
-            }
-
-            return _enumeration;
+            return Enumeration;
         }
     }
 }

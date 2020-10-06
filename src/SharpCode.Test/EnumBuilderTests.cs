@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NUnit.Framework;
 
 namespace SharpCode.Test
@@ -255,6 +256,34 @@ public enum Storage
                     Code.CreateEnumMember("Duplicate"))
                     .ToSourceCode(),
                 "Generating the source code for an enum with duplicate values should throw an exception.");
+        }
+
+        [Test]
+        public void EnumBuilder_WithMembers_ApisYieldIdenticalResults()
+        {
+            var enumerableApi = Code.CreateEnum("Test")
+                .WithMembers(new List<EnumMemberBuilder>
+                {
+                    Code.CreateEnumMember("None"),
+                    Code.CreateEnumMember("Some"),
+                })
+                .ToSourceCode();
+
+            var paramsApi = Code.CreateEnum("Test")
+                .WithMembers(
+                    Code.CreateEnumMember("None"),
+                    Code.CreateEnumMember("Some"))
+                .ToSourceCode();
+
+            Assert.AreEqual(enumerableApi, paramsApi);
+        }
+
+        [Test]
+        public void EnumBuilder_ToSourceCode_ToString_YieldIdentical()
+        {
+            var toSourceCode = Code.CreateEnum("Type").WithMember(Code.CreateEnumMember("Some")).ToSourceCode();
+            var toString = Code.CreateEnum("Type").WithMember(Code.CreateEnumMember("Some")).ToString();
+            Assert.AreEqual(toSourceCode, toString);
         }
     }
 }
